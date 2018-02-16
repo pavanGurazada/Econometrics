@@ -12,6 +12,8 @@ library(tidyverse)
 library(caret)
 library(arm)
 
+library(keras)
+
 set.seed(20130810)
 theme_set(theme_classic())
 
@@ -32,7 +34,7 @@ load("data/gelman/kidiq.rda")
 glimpse(kidiq)
 ```
 
-The basis problem is to predict the IQ score of kids depending on the features associated with the mother.
+The problem is to predict the IQ score of kids depending on the features associated with the mother.
 
 We start by splitting the data out.
 
@@ -97,4 +99,187 @@ print(kidiqFit2$results)
 
 Still pathetic.
 
+Let us try ridge regression and elastic net.
+
+```{r}
+kidiqFit3 <- train(kid_score ~ mom_hs * mom_iq,
+                   data = kidiqTrain,
+                   method = "ridge",
+                   preProcess = c("center", "scale"),
+                   tuneGrid = expand.grid(lambda = c(0, 0.001, 0.01, 0.1)),
+                   trControl = trainControl(method = "repeatedcv",
+                                            number = 10,
+                                            repeats = 5))
+
+kidiqFit4 <- train(kid_score ~ mom_hs * mom_iq,
+                   data = kidiqTrain,
+                   method = "glmnet",
+                   preProcess = c("center", "scale"),
+                   tuneGrid = expand.grid(lambda = c(0, 0.001, 0.01, 0.1),
+                                          alpha = seq(0.05, 1, length.out = 20)),
+                   trControl = trainControl(method = "repeatedcv",
+                                            number = 10,
+                                            repeats = 5))
+```
+
+```{r}
+print(kidiqFit3$results)
+```
+
+```{r}
+print(kidiqFit4$results)
+```
+
+
+```{r}
+coef(kidiqFit4$finalModel, kidiqFit4$bestTune$lambda)
+```
+
+
+Checking the real-world performance.
+
+```{r}
+yPredict <- predict(kidiqFit3, kidiqTest)
+RMSE(yPredict, kidiqTest$kid_score)
+```
+
+Not worth losing the interpretability of coefficients by moving beyond the simple linear regression. How important is significance of the features if the predictive power is not great?
+
+# Chapter 5: Logistic regression
+
+```{r}
+load("data/gelman/wells.rda")
+
+glimpse(wells)
+```
+
+A research team measured all wells in Bangladesh and advised people near the wells about the levels of Arsenic in them. People around wells with high levels of arsenic were advised to switch to nearby private or community wells or to new wells. They returned after a few years and observed the switching decision of a sample of households and measured them on a few features.
+
+Begin by observing the distribution of the outcome for signs of a class imbalance.
+
+```{r}
+qplot(wells$switch, geom = "bar") +
+  labs(x = "Switched?",
+       title = "Distribution of outcome")
+```
+
+No severe class imbalance. Let us split the data.
+
+```{r}
+trainingRows <- createDataPartition(wells$switch, p = 0.8, list = FALSE)
+wellsTrain <- wells[trainingRows, ]
+wellsTest <- wells[-trainingRows, ]
+```
+
+Repeat distribution of outcome on the training data.
+
+```{r}
+qplot(wellsTrain$switch, geom = "bar") +
+  labs(x = "Switched?",
+       title = "Distribution of outcome (training set)")
+```
+
+Lets fit a logistic regression.
+
+```{r}
+wellsFit1 <- train(factor(switch) ~ dist + arsenic + assoc + educ + dist:arsenic,
+                   data = wellsTrain,
+                   method = "glm",
+                   preProcess = c("center", "scale"),
+                   trControl = trainControl(method = "repeatedcv",
+                                            number = 10,
+                                            repeats = 5))
+
+summary(wellsFit1)
+```
+
+Lets look at the cross-validation score.
+
+```{r}
+print(wellsFit1$results)
+```
+
+Not that great accuracy. Try removing the association variable.
+
+```{r}
+wellsFit2 <- train(factor(switch) ~ dist + arsenic + educ + dist:arsenic,
+                   data = wellsTrain,
+                   method = "glm",
+                   preProcess = c("center", "scale"),
+                   trControl = trainControl(method = "repeatedcv",
+                                            number = 10,
+                                            repeats = 5))
+
+summary(wellsFit2)
+```
+
+Cross-validation accuracy:
+
+```{r}
+print(wellsFit2$results)
+```
+
+Add more interactions and log(arsenic) following the logic in pages 95 - 97.
+
+```{r}
+wellsFit3 <- train(factor(switch) ~ dist + log(arsenic) + educ + dist:log(arsenic) +
+                                    dist:educ + log(arsenic):educ,
+                   data = wellsTrain,
+                   method = "glm",
+                   preProcess = c("center", "scale"),
+                   trControl = trainControl(method = "repeatedcv",
+                                            number = 10,
+                                            repeats = 5))
+
+summary(wellsFit3)
+```
+
+```{r}
+print(wellsFit3$results)
+```
+Slight jump in accuracy.
+
+```{r}
+confusionMatrix(wellsFit3)
+```
+
+In principle, the accuracy of the logistic regression should be no greater than a neural network with one hidden layer.
+
+```{r}
+nnFit <- keras_model_sequential()
+
+nnFit %>% layer_dense(units = 1, activation = "relu", input_shape = c(4)) %>% 
+          layer_dropout(rate = 0.4) %>% 
+          layer_dense(units = 1, activation = "sigmoid")
+
+summary(nnFit)
+```
+
+```{r}
+nnFit %>% compile(loss = "categorical_crossentropy",
+                  optimizer = optimizer_rmsprop(),
+                  metrics = c("accuracy"))
+
+history <- nnFit %>% fit(wellsTrain[, 2:5], wellsTrain$switch,
+                         epochs = 30, batch_size = 100,
+                         validation_split = 0.2)
+
+```
+
+```{r}
+nnetFit <- train(factor(switch) ~ dist + log(arsenic) + educ + dist:log(arsenic) +
+                                    dist:educ + log(arsenic):educ,
+                 data = wellsTrain,
+                 method = "nnet",
+                 preProcess = c("center", "scale"),
+                 tuneGrid = expand.grid(decay = c(0, 0.01, 0.1),
+                                        size = c(1:10)),
+                 trControl = trainControl(method = "cv", 
+                                          allowParallel = TRUE),
+                 linout = TRUE,
+                 trace = FALSE,
+                 maxit = 500)
+
+
+```
 
