@@ -1,0 +1,100 @@
+---
+title: "Applied Regression Modeling, with a twist"
+author: Pavan Gurazada
+date: February 2018
+output: github_document
+---
+
+Global options and package dependencies
+
+```{r}
+library(tidyverse)
+library(caret)
+library(arm)
+
+set.seed(20130810)
+theme_set(theme_classic())
+
+```
+
+In this workbook we go through some of the examples and exercises from the classic, [Gelman and Hill (2007)](https://www.amazon.com/Analysis-Regression-Multilevel-Hierarchical-Models/dp/052168689X/ref=cm_cr_arp_d_product_top?ie=UTF8).
+
+The Stan group has posted most of the associated R code for the book [here](https://github.com/stan-dev/example-models/tree/master/ARM).
+
+# Chapter 3 & 4
+
+Load up the data for the chapter and take a look.
+```{r}
+load("data/gelman/kidiq.rda")
+```
+
+```{r}
+glimpse(kidiq)
+```
+
+The basis problem is to predict the IQ score of kids depending on the features associated with the mother.
+
+We start by splitting the data out.
+
+```{r}
+trainingRows <- createDataPartition(kidiq$kid_score, p = 0.8, list = FALSE)
+
+kidiqTrain <- kidiq[trainingRows, ]
+kidiqTest <- kidiq[-trainingRows, ]
+```
+
+Let us look at the distribution of the outcome.
+
+```{r}
+qplot(kidiqTrain$kid_score, geom = "histogram", binwidth = 10) + 
+  labs(x = "Kid score",
+       title = "Distribution of outcome (training data)")
+```
+
+Seems okay, with no abnormal skew. Lets run a simple linear regression.
+
+```{r}
+kidiqFit1 <- train(kid_score ~ .,
+                  data = kidiqTrain,
+                  method = "lm",
+                  preProcess = c("center", "scale"),
+                  trControl = trainControl(method = "repeatedcv",
+                                           number = 10,
+                                           repeats = 5))
+```
+
+```{r}
+summary(kidiqFit1)
+```
+
+Pretty pathetic $R^2$. Lets look at the cross validation scores.
+
+```{r}
+print(kidiqFit1$results)
+```
+
+Hopeless. Lets try interactions, throw out mom_age as it does not seem to contribute.
+
+```{r}
+kidiqFit2 <- train(kid_score ~ mom_hs * mom_iq,
+                   data = kidiqTrain,
+                   method = "lm",
+                   preProcess = c("center", "scale"),
+                   trControl = trainControl(method = "repeatedcv",
+                                            number = 10,
+                                            repeats = 5))
+```
+
+```{r}
+summary(kidiqFit2)
+```
+
+Marginally better. Now to the cross validation results.
+
+```{r}
+print(kidiqFit2$results)
+```
+
+Still pathetic.
+
+
