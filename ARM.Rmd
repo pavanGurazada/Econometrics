@@ -273,7 +273,7 @@ nnetFit <- train(factor(switch) ~ dist + log(arsenic) + educ + dist:log(arsenic)
                  method = "nnet",
                  preProcess = c("center", "scale"),
                  tuneGrid = expand.grid(decay = c(0, 0.01, 0.1),
-                                        size = c(1:10)),
+                                        size = c(1:2)),
                  trControl = trainControl(method = "cv", 
                                           allowParallel = TRUE),
                  linout = TRUE,
