@@ -288,6 +288,8 @@ nnetFit <- train(factor(switch) ~ dist + log(arsenic) + educ + dist:log(arsenic)
 
 All GLMs transform a linear combination of predictors to map to the outcome. Unmodeled variation between the predicted and observed data follows a chosen probability distribution. Together these parameters define the kind of GLM, e. g., Logistic or Ordered Multinomial or Poisson.
 
+## Example 1: Predicting presidential elections
+
 ```{r}
 nes <- read.dta("data/gelman/nes5200_processed_voters_realideo.dta")
 glimpse(nes)
@@ -360,5 +362,33 @@ Lets predict on the test data.
 ```{r}
 presVotePred <- predict(mnLogit, nesCleanTest)
 confusionMatrix(presVotePred, nesCleanTest$presvote)
+```
+
+## Predicting oscar awards
+
+```{r}
+oscars <- read_csv("data/gelman/oscars.csv")
+glimpse(oscars)
+```
+
+No missing values
+
+```{r}
+sum(is.na(oscars))
+```
+
+Lazy model
+
+```{r}
+trainingRows <- createDataPartition(oscars$Ch, p = 0.8, list = FALSE)
+oscarsTrain <- oscars[trainingRows, ]
+oscarsTest <- oscars[-trainingRows, ]
+
+oscarMultiNomFit <- train(factor(Ch) ~ .,
+                          data = oscarsTrain,
+                          method = "lm",
+                          trControl = trainControl(method = "repeatedcv",
+                                                   number = 10, 
+                                                   repeats = 5))
 ```
 
