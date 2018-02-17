@@ -386,7 +386,7 @@ oscarsTest <- oscars[-trainingRows, ]
 
 oscarMultiNomFit <- train(factor(Ch) ~ .,
                           data = oscarsTrain,
-                          method = "lm",
+                          method = "glm",
                           trControl = trainControl(method = "repeatedcv",
                                                    number = 10, 
                                                    repeats = 5))
