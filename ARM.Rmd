@@ -11,6 +11,7 @@ Global options and package dependencies
 library(tidyverse)
 library(caret)
 library(arm)
+library(foreign)
 
 library(keras)
 
@@ -281,5 +282,83 @@ nnetFit <- train(factor(switch) ~ dist + log(arsenic) + educ + dist:log(arsenic)
                  maxit = 500)
 
 
+```
+
+# Chapter 6: Generalized linear models (GLM)
+
+All GLMs transform a linear combination of predictors to map to the outcome. Unmodeled variation between the predicted and observed data follows a chosen probability distribution. Together these parameters define the kind of GLM, e. g., Logistic or Ordered Multinomial or Poisson.
+
+```{r}
+nes <- read.dta("data/gelman/nes5200_processed_voters_realideo.dta")
+glimpse(nes)
+```
+
+*Question:* Predict presidential vote based on ideology and demographics using a multinomial logit.
+
+Lets select the relevant subset of the data.
+
+```{r}
+nesPresVote <- nes %>%  dplyr::select(gender, race, educ1, income, religion, ideo, presvote) 
+summary(nesPresVote)
+```
+
+Bunch of missing values, especially for ideology. The outcome is missing on a bunch too. Lets take out count the number of rows that have at least one missing value. 
+
+```{r}
+glimpse(nesPresVote)
+missingRows <- as.vector(rowSums(is.na(nesPresVote)) > 0)
+sum(missingRows)
+
+nesClean <- na.omit(nesPresVote)
+glimpse(nesClean)
+summary(nesClean)
+```
+
+Thats a lot of data that goes out. There are a bunch of factor levels with no data, we need to drop them.
+
+```{r}
+nesClean <- droplevels(nesClean)
+glimpse(nesClean)
+```
+
+Lets split the data. 
+
+```{r}
+trainingRows <- createDataPartition(nesClean$presvote, p = 0.8, list = FALSE)
+nesCleanTrain <- nesClean[trainingRows, ]
+nesCleanTest <- nesClean[-trainingRows, ]
+
+summary(nesCleanTrain)
+```
+
+```{r}
+mnLogit <- train(presvote ~ .,
+                 data = nesCleanTrain,
+                 method = "polr",
+                 trControl = trainControl(method = "repeatedcv",
+                                          number = 10, 
+                                          repeats = 5))
+```
+
+
+```{r}
+summary(mnLogit)
+```
+
+```{r}
+print(mnLogit$results)
+```
+
+Thats a good accuracy given the amount and kind of  data we have!
+
+```{r}
+confusionMatrix(mnLogit)
+```
+
+Lets predict on the test data.
+
+```{r}
+presVotePred <- predict(mnLogit, nesCleanTest)
+confusionMatrix(presVotePred, nesCleanTest$presvote)
 ```
 
