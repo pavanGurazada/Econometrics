@@ -116,4 +116,16 @@ xgboostFit <- train(medv ~ .,
                     method = "xgbTree")
 print(xgboostFit)
 
-#' Clearly gradient boosted tree does better.
+#' gradient boosted tree does better.
+
+xgboostFit2 <- train(medv ~ .,
+                     data = bostonTrain,
+                     method = "xgbTree",
+                     tuneGrid = expand.grid(nrounds = 350,
+                                            max_depth = 1:6,
+                                            eta = c(0.3, 0.4, 0.5),
+                                            gamma = 0.01,
+                                            colsample_bytree = 0.75,
+                                            subsample = 0.5,
+                                            min_child_weight = 0))
+print(xgboostFit2$results)
