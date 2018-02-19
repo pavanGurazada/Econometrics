@@ -77,10 +77,8 @@ confusionMatrix(logitFit)
 
 rfFit <- train(High ~ . - Sales,
                data = Carseats,
-               method = "rf",
-               trControl = trainControl(method = "repeatedcv",
-                                        number = 10,
-                                        repeats = 5))
+               method = "rf")
+
 varImp(rfFit)
 confusionMatrix(rfFit)
 
