@@ -11,6 +11,12 @@ library(MASS)
 library(tidyverse)
 library(caret)
 
+library(doParallel)
+library(parallel)
+clusters <- makeCluster(detectCores() - 1)
+registerDoParallel(clusters)
+
+
 #' At the core of regression trees is the concept of splitting the parameter
 #' space such that the mean square error is minimized. As a starting point, one
 #' might predict the outcome for all points in a region by the mean observed
@@ -127,3 +133,43 @@ xgboostFit2 <- train(medv ~ .,
                                             subsample = 0.5,
                                             min_child_weight = 0))
 print(xgboostFit2$results)
+
+#' Lets take a closer look at random forests and gradient boosted methods using 
+#' bigger examples
+
+cnames <- c("age", "workclass", "fnlwgt", "education", "education_num",
+            "marital_status", "occupation", "relationship", "race",
+            "sex", "capital_gain", "capital_loss", "hours_per_week",
+            "native_country", "target")
+
+adultTrain <- read.table("data/general/adult.data", header = FALSE, sep = ",",
+                         col.names = cnames, na.strings = c(" ?"),
+                         stringsAsFactors = FALSE)
+
+adultTest <- read.table("data/general/adult.test", header = FALSE, sep = ",",
+                        col.names = cnames, skip = 1, na.strings = c(" ?"),
+                        stringsAsFactors = FALSE)
+glimpse(adultTrain)
+glimpse(adultTest)
+
+table(is.na(adultTrain))
+table(is.na(adultTest))
+
+#' Both have missing data. We can incorporate this into modeling
+#'  Check for class imbalance
+
+adultTrain %>% group_by(target) %>% summarize(Fraction = n()/nrow(.))
+adultTest %>% group_by(target) %>% summarize(Fraction = n()/nrow(.))
+
+adultTrain <- adultTrain %>% mutate_if(is.character, as.factor)
+adultTest <- adultTest %>% mutate_if(is.character, as.factor)
+
+adultRF <- train(target ~ .,
+                 data = adultTrain,
+                 method = "xgbTree",
+                 trControl = trainControl(method = "repeatedcv",
+                                          number = 1,
+                                          repeats = 1, 
+                                          verboseIter = TRUE),
+                 na.action = na.omit) # For now handle missing values by removing them
+
