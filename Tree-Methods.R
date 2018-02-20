@@ -171,5 +171,6 @@ adultRF <- train(target ~ .,
                                           number = 1,
                                           repeats = 1, 
                                           verboseIter = TRUE),
-                 na.action = na.omit) # For now handle missing values by removing them
+                 na.action = na.omit,
+                 allowParallel = TRUE) # For now handle missing values by removing them
 
