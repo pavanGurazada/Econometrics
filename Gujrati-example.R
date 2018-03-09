@@ -35,6 +35,23 @@ lm_cps <- train(wage ~ female + nonwhite + union + education + exper,
 summary(lm_cps)
 #' Rubbish R^2 - features are missing
 
+lm_cps2 <- train(wage ~ female + nonwhite + union + education + exper + female:nonwhite,
+                 data = train_cps,
+                 method = "lm",
+                 trControl = trainControl(method = "repeatedcv",
+                                         number = 10,
+                                         repeats = 5))
+summary(lm_cps2)
+
+lm_cps3 <- train(wage ~ female + nonwhite + union + education + exper + 
+                        female:education + female:exper + nonwhite:education,
+                 data = train_cps,
+                 method = "lm",
+                 trControl = trainControl(method = "repeatedcv",
+                                         number = 10,
+                                         repeats = 5))
+summary(lm_cps3)
+
 #' *Example 2*
 
 cd_usa <- read.dta("data/gujrati-example/Stata/Table2_1.dta")
@@ -59,6 +76,14 @@ boot_cb <- boot(cd_usa, statistic = lm_stat, R = 1000)
 
 summary(lm(lnoutlab ~ lncaplab, data = cd_usa))
 
+summary(lm(outputstar ~ laborstar + capitalstar, data = cd_usa))
+cd_model1 <- train(scale(output) ~ labor + capital, 
+                   data = cd_usa,
+                   method = "lm",
+                   preProcess = c("center", "scale"),
+                   trControl = trainControl(method = "boot", number = 100))
+summary(cd_model1)
+
 #' *Example 3*
 
 gdp_us <- read.dta("data/gujrati-example/Stata/Table2_5.dta")
@@ -75,6 +100,7 @@ glimpse(food_expend)
 
 summary(lm(sfdho ~ lnexpend, data = food_expend))
 summary(lm(sfdho ~ I(1/expend), data = food_expend))
+summary(lm(sfdho ~ expend + expend2, data = food_expend))
 
 #' When there is little to choose between these two models in terms of R^2,
 #' cross-validation might provide an answer for which model to choose. The model
@@ -106,5 +132,17 @@ food_model2
 #' towards the model that offers a richer interpetation, even if it has lesser
 #' predictive power
 
+#' *Example 5*
 
+corruption <- read.dta("data/gujrati-example/Stata/Table2_18.dta")
+glimpse(corruption)
 
+corruption_model1 <- train(index ~ country + gdp_cap,
+                           data = corruption,
+                           method = "rf")
+corruption_model1
+
+corruption_model2 <- train(index ~ country * gdp_cap,
+                           data = corruption,
+                           method = "rf")
+corruption_model2
