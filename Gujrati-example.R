@@ -243,3 +243,55 @@ diabetes_data <- read.dta("data/gujrati-example/Stata/Table3_19.dta")
 glimpse(diabetes_data)
 
 summary(lm(diabetes ~ ban * sugar_sweet_cap, diabetes_data))
+
+#' *Example 9*
+#' Dependence of working women's hours of work; data is collected for 753 women
+#' in 1975
+
+wwmn_data <- read.dta("data/gujrati-example/Stata/Table4_4.dta")
+glimpse(wwmn_data)
+
+summary(w_model1 <- lm(hours ~ age + educ + exper + faminc + fathereduc + hage + 
+                               heduc + hhours + hwage + kids618 + kidsl6 + wage 
+                               + mothereduc + mtr + unemployment, 
+                       data = wwmn_data))
+
+w_corrs <- wwmn_data %>% select(-hours) %>% cor()
+
+bad_preds <- findCorrelation(w_corrs, cutoff = 0.75, verbose = TRUE)
+
+wwmn_cleaned <- wwmn_data %>% select(-hours) %>% 
+                              select(-bad_preds) %>%
+                              mutate(hours = wwmn_data$hours)
+glimpse(wwmn_cleaned)
+
+summary(w_model2 <- lm(hours ~ educ + exper + faminc + fathereduc + hage + 
+                               heduc + hhours + hwage + kids618 + kidsl6 + wage 
+                               + mothereduc + unemployment, 
+                       data = wwmn_cleaned))
+
+#' Often number of variables in econometric studies are handpicked and hence
+#' multicollinearity should not be a reason for exclusion. There should be valid
+#' arguments that drive that decision. This is a very subjective call dependent 
+#' on the information available to the analyst
+
+summary(w_model3 <- lm(hours ~ age + educ + exper + faminc + hhours + hwage + 
+                               kidsl6 + wage + mtr + unemployment, 
+                       data = wwmn_data))
+
+#' *Example 10*
+
+manpower <- read.dta("data/gujrati-example/Stata/Table4_11.dta")
+glimpse(manpower)
+
+x_corr <- manpower %>% select(-y) %>% cor()
+findCorrelation(x_corr, cutoff = 0.75, verbose = TRUE, names = TRUE)
+
+#' *Example 11*
+#' What factors determine abortion rate across the 50 states in USA?
+
+abortion_data <- read.dta("data/gujrati-example/Stata/Table5_1.dta")
+glimpse(abortion_data)
+
+
+
