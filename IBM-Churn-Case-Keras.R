@@ -11,11 +11,11 @@
 #' you have to find out who is leaving and why.
 
 library(keras)
-library(lime)
 library(rsample)
 library(recipes)
 library(yardstick)
 library(corrr)
+library(tidyverse)
 
 set.seed(20130810)
 theme_set(theme_bw())
