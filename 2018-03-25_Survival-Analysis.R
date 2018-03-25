@@ -3,13 +3,14 @@
 #' author: Pavan Gurazada
 #' output: github_document
 #' ---
-#' last update: Sun Mar 25 07:01:54 2018
+#' last update: Sun Mar 25 11:57:25 2018
 
 library(survival)
 library(ranger)
 library(tidyverse)
 library(ggfortify)
 library(ggthemes)
+library(caret)
 
 theme_set(theme_few())
 
@@ -49,3 +50,16 @@ aa_fit <- aareg(Surv(time, status) ~ trt + celltype + karno + diagtime + age + p
 aa_fit
 
 autoplot(aa_fit)
+
+r_fit <- ranger(Surv(time, status) ~ trt + celltype + karno + diagtime + age + prior,
+                data = vet,
+                mtry = 4,
+                importance = "permutation",
+                splitrule = "extratrees",
+                verbose = TRUE)
+
+death_times <- r_fit$unique.death.times
+surv_prob <- data.frame(r_fit$survival)
+avg_prob <- surv_prob %>% summarize_all(funs(mean))
+
+  
