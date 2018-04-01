@@ -11,6 +11,8 @@ library(tidyverse)
 
 theme_set(theme_minimal())
 
+set.seed(20130810)
+
 #' The interesting portions of this example is the data creation bit.
 #'
 #' The best sales happen on Wednesday (i.e., day 3) each week. We store the mean
@@ -80,3 +82,12 @@ sales_df <- sales_df %>% mutate(radio_dummy1 = ifelse(radio_grp >= 0.4 & radio_g
 
 summary(lm(total_sales ~ factor(day) + radio_dummy1 + radio_dummy2 + radio_dummy3 + radio_dummy4,
            data = sales_df))
+
+#' We can extend the analysis by using a generalized additive model that applies
+#' a smooth function to the influence of `radio_grp`
+
+summary(mgcv::gam(total_sales ~ s(radio_grp, bs = 'ps', sp = 0.5) + factor(day), 
+                  data = sales_df))
+
+#' Another interesting approach is to find the half-life or decay rate of an ad
+#' exposure
