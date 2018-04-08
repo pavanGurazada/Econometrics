@@ -1,0 +1,404 @@
+---
+title: "Data Wrangling with `dplyr`"
+author: "https://suzanbaert.netlify.com/2018/01/dplyr-tutorial-1/"
+date: "April 8, 2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(tidyverse)
+```
+
+I replicate the deep look at wrangling data with `dplyr` in this tutorial. `dplyr` is an amazing tool to map my thoughts about variables into action.
+
+I begin by taking a look at the data set
+
+```{r}
+glimpse(msleep)
+```
+
+# On Selecting...
+
+A particularly nice feature of `select` is that ir reorders the columns in order of the selection criterion. This is useful when we want to place the dependent variable as the first column and the rest of the features as the other columns.
+
+For e.g., notice the difference between the two function calls. For the specific task of moving the dependent variable to the first column, `everything()` is my best friend.
+
+```{r}
+msleep %>% 
+  select(name, genus, sleep_total, awake) %>% 
+  glimpse()
+
+msleep %>% 
+  select(sleep_total, name, genus, awake) %>% 
+  glimpse()
+
+msleep %>% 
+  select(sleep_total, conservation, everything()) %>% 
+  glimpse()
+```
+
+This approach is usuallly good for a small selection of columns; for larger selections we can use the colon syntax.
+
+```{r}
+msleep %>% 
+  select(name:order, sleep_total:sleep_cycle) %>% 
+  glimpse()
+```
+
+Deselection of columns is accomplised by placing -ve signs in front of the columns. We can add back a subset of the deselected columns by mentioning it in the same step.
+
+```{r}
+msleep %>% 
+  select(-conservation, -(sleep_total:awake)) %>% 
+  glimpse()
+
+msleep %>% 
+  select(-(name:awake), conservation) %>% 
+  glimpse()
+```
+
+A useful method to select columns when there are several features is to use select helpers (`starts_with`, `ends_with` and `contains`)
+
+```{r}
+msleep %>% 
+  select(name, starts_with("sleep")) %>% 
+  glimpse()
+
+msleep %>% 
+  select(contains("eep"), ends_with("wt")) %>% 
+  glimpse()
+```
+Another useful method to select is to do it by data type. We can quickly isolate factors and non-factors in this way.
+
+```{r}
+msleep %>% 
+  select_if(is.numeric) %>% 
+  glimpse()
+```
+
+Now, it is time to grok why the following negation is required
+
+```{r}
+msleep %>% 
+  select_if(~!is.numeric(.)) %>% 
+  glimpse()
+
+msleep %>% 
+  select_if(~is.numeric(.)) %>% 
+  glimpse()
+```
+
+`select_if` is particularly hepful to select columns based on logical expressions. The tilde tells the interpreter that whatever follows it is a function. If tilde is not preferred anonymous functions can be used instead.
+
+```{r}
+msleep %>% 
+  select_if(~is.numeric(.)) %>% 
+  select_if(~mean(., na.rm = TRUE) > 10) %>% 
+  glimpse()
+
+msleep %>%
+  select_if(function(col) is.numeric(col)) %>% 
+  select_if(function(col) mean(col, na.rm = TRUE) > 10) %>% 
+  glimpse()
+```
+
+As, we can see the above two variants return identical results. I personally lean towards the latter version that does not introduce new syntax but banks on anonymous functions (a concept that I like a lot). 
+
+```{r}
+msleep %>% 
+  select_if(function(col) !is.numeric(col)) %>% 
+  glimpse()
+```
+
+This concept of passing in arbitrary anonymous functions as arguments to select particular columns based on their statistical summaries is rather neat. All we have to think of is to map the column to a bespoke function, `select_if` handles the rest.
+
+```{r}
+msleep %>% 
+  select_if(function(col) is.numeric(col) && mean(col, na.rm = TRUE) > 10) %>% 
+  glimpse()
+
+msleep %>% 
+  select_if(function(.) n_distinct(.) < 10) %>% 
+  glimpse()
+```
+
+As we can see in the second example above, `.` is a valid place holder for the arguments. It might look alien to code readers, so I prefer using the explicit `col` (which can be reused outside the function scope).
+
+Some times column names come in an unclean way (i.e., with spaces or other difficult word separators). This can be handled within the `select` family or using `rename`.
+
+```{r}
+# Make a mess
+msleep2 <- select(msleep, name, sleep_total, brainwt)
+colnames(msleep2) <- c("name", "sleep total", "brain weight")
+
+# Clean the mess
+msleep2 %>% 
+  select_all(function(col) str_replace(col, " ", "_")) %>% 
+  glimpse()
+```
+
+# On transforming...
+
+These involve changing existing columns or adding new columns which are themselves functions of other columns. Here, we can extend the vectorized way of thinking that is central to `R` and think of transformations we can do on each column (assuming that it is a vector). This lends to a rich variety of things we can accomplish by using the `mutate` family of functions.
+
+```{r}
+msleep %>% 
+  select(name, sleep_total) %>% 
+  mutate(sleep_total_min = sleep_total * 60) %>% 
+  glimpse()
+```
+
+```{r}
+msleep %>% 
+  select(name, sleep_total) %>% 
+  mutate(sleep_total_vs_avg = sleep_total - mean(sleep_total),
+         sleep_total_vs_min = sleep_total - min(sleep_total)) %>% 
+  glimpse()
+```
+The above example reinforces the notion that within `mutate`, we focus on each column as a vector. What is valid `R` for vectors, is valid within `mutate`.
+
+Another usual situation is to use each elements of the rows in several columns to create a new column that aggregates these columns. For e.g., we might need a column whose entries are the averages of the corresponding entries in two other columns. This requires us to activate the rows specifically.
+
+```{r}
+msleep %>% 
+  select(name, contains("sleep")) %>% 
+  rowwise() %>% 
+  mutate(avg = mean(c(sleep_rem, sleep_cycle))) %>% 
+  glimpse()
+```
+
+```{r}
+msleep %>% 
+  select(name, brainwt) %>% 
+  mutate(brainwt2 = ifelse(brainwt > 4, NA, brainwt)) %>%
+  arrange(desc(brainwt)) %>% 
+  glimpse()
+```
+
+A very useful task is to be able to mutate targeted columns at once. The earlier idea in `select` to use anonymous functions as arguments to control what gets done with columns is quite powerful.
+
+The following is a nice example, where we first change all the columns in the data frame by appending a new line to each of the items. Notice the use of anonymous functions here. We can focus specifically on what we want to do and use targeted functions to accomplish that task. 
+
+```{r}
+# make a mess
+
+msleep_ohno <- msleep %>% 
+  mutate_all(function(col) paste(col, "\n")) %>% 
+  glimpse()
+
+msleep_corrected <- msleep_ohno %>% 
+  mutate_all(function(col) str_replace_all(col, "\n", "")) %>% 
+  mutate_all(function(col) str_trim(col)) %>% 
+  glimpse()
+```
+
+Similarly, we can mutate specific columns using `mutate_if` by using two arguments. The first being an anonymous/named function that specifies the selection criteria (logical) and the second being the anonymous/named function that applies the function to the subset of the columns selected.
+
+```{r}
+msleep %>% 
+  mutate_if(function(col) is.numeric(col),
+            function(col) round(col)) %>% 
+  glimpse()
+```
+
+An alternative is to use `mutate_at` which requires two arguments - first, specifying the columns to be considered wrapped in `vars()` and second, the usual anonymous/named function to be applied to these columns.
+
+```{r}
+msleep %>% 
+  select(name, sleep_total:awake) %>% 
+  mutate_at(vars(contains("sleep")),
+            function(col) col * 60) %>% 
+  glimpse()
+```
+
+It is a good practise to rename the mutated columns to avoid confusion with the column names from the original data.
+
+```{r}
+msleep %>% 
+  select(name, sleep_total:awake) %>% 
+  mutate_at(vars(contains("sleep")),
+            function(col) col * 60) %>% 
+  rename_at(vars(contains("sleep")),
+            function(col) paste0(col, "_min")) %>% 
+  glimpse()
+```
+
+`mutate` functions are also useful when dealing with factors to do some simple reorganizations (usually to make bespoke plots).
+
+```{r}
+msleep %>% 
+  mutate(conservation2 = recode(conservation, "en" = "Endangered",
+                                              "lc" = "Least_Concern",
+                                              "domesticated" = "Least_Concern",
+                                              .default = "Other")) %>% 
+  count(conservation2)
+```
+
+A discrete variable can be split into multiple categories (beyond what `ifelse` can handle) by using `case_when`. This is most helpful to create factors from features.
+
+```{r}
+msleep %>% 
+  select(name, sleep_total) %>% 
+  mutate(sleep_total_discr = case_when(sleep_total > 13 ~ "very long",
+                                       sleep_total > 10 ~ "long",
+                                       sleep_total > 7 ~ "limited",
+                                       TRUE ~ "short")) %>% 
+  mutate(sleep_total_discr = factor(sleep_total_discr, levels = c("short", "limited", "long", "very long"))) %>% 
+  glimpse()
+```
+
+# On gathering...
+
+These are crucial tasks that are extremely useful for plotting.
+
+In `gather`, we gather up several columns and their values into two new columns - one for the key (which column did the data come from?) and another for the value (what data did the corresponding column hold?). We can specify the columns we do not want to gather by specifying the negatives of these columns. We can choose to code the gathered key as a factor too.
+
+```{r}
+msleep %>% 
+  select(name, contains("sleep")) %>% 
+  gather(key = "sleep_measure", value = "time", -name) %>% 
+  glimpse()
+
+msleep %>% 
+  select(name, contains("sleep")) %>% 
+  gather(key = "sleep_measure", value = "time", -name, factor_key = TRUE) %>% 
+  glimpse()
+```
+
+The opposite of the `gather` function is the `spread` function that disperses the data contained within a (key, value) pair of columns into separate columns using the data in key as the column names.
+
+
+# On filtering...
+
+Very often, we filter the rows in the data using a condition based on the values in the column. This is accomplished using the `filter` function. Multiple arguments can be specified within the function to filter using any kind of selections.
+
+```{r}
+msleep %>% 
+  select(name, sleep_total) %>% 
+  filter(sleep_total > 18) %>% 
+  glimpse()
+
+msleep %>% 
+  select(name, sleep_total) %>% 
+  filter(sleep_total >= 16, sleep_total <= 18) %>% 
+  glimpse()
+```
+
+Composite functions can also be used as filter criterion. Just like `mutate`, within the filter we vectorize the function applications.
+
+```{r}
+
+msleep %>% 
+  select(name, order, sleep_total:bodywt) %>% 
+  filter(bodywt > 100, (sleep_total > 15 | order != "Carnivora")) %>% 
+  glimpse()
+
+msleep %>% 
+  select(name, conservation:sleep_cycle) %>% 
+  filter(!is.na(conservation)) %>% 
+  glimpse()
+
+msleep %>% 
+  select(name, sleep_total) %>% 
+  filter(between(sleep_total, 16, 18)) %>% 
+  glimpse()
+
+msleep %>% 
+  select(name, sleep_total) %>% 
+  filter(near(sleep_total, 17, tol = sd(sleep_total))) %>% 
+  glimpse()
+
+msleep %>% 
+  select(name, sleep_total) %>% 
+  filter(str_detect(tolower(name), pattern = "mouse")) %>% 
+  glimpse()
+```
+
+Things within the specific subset of filter functions (`filter_all`, `filter_if` and `filter_at`) can take some getting used to!
+
+```{r}
+msleep %>% 
+  select(name, sleep_total:bodywt) %>% 
+  filter_all(any_vars(. < 0.1)) %>% 
+  glimpse()
+```
+
+```{r}
+msleep %>% 
+  select(name:order, sleep_total:sleep_rem) %>% 
+  filter_if(function(col) is.character(col),
+            any_vars(is.na(.))) %>% 
+  glimpse()
+```
+
+
+```{r}
+msleep %>% 
+  select(name, sleep_total:sleep_rem, brainwt:bodywt) %>% 
+  filter_at(vars(sleep_total, sleep_rem), all_vars(. > 5)) %>% 
+  glimpse()
+```
+
+# On summarizing...
+
+One common summary task is to count the number of observations corresponding to the values of features.
+
+```{r}
+msleep %>% 
+  count(order, sort = TRUE)
+
+msleep %>% 
+  group_by(order) %>% 
+  tally(sort = TRUE)
+```
+
+Here is an interesting count function.
+
+```{r}
+msleep %>% 
+  select(name:vore) %>% 
+  add_count(vore) %>%
+  glimpse()
+```
+
+This brings us to the functions that I probably use most - `group_by` and `summarize`
+
+```{r}
+msleep %>% 
+  group_by(vore) %>% 
+  summarize(n = n(),
+            average = mean(sleep_total),
+            maximum = max(sleep_total))
+```
+
+The usual variants also exist to aid column-specific summaries. Once again, anonymous functions are really helpful here. I like to think in terms of what summary I wish to apply to one column and then map this to all the required columns. Of course, several permuations and combinations among the `select` and `summarize` families can yield the same end-result.
+
+```{r}
+msleep %>% 
+  group_by(vore) %>% 
+  select_if(function(col) is.numeric(col)) %>% 
+  summarize_all(function(col) mean(col, na.rm = TRUE)) %>% 
+  rename_if(function(col) is.numeric(col),
+            function(colname) paste0("avg_", colname))
+
+msleep %>% 
+  group_by(vore) %>% 
+  summarize_if(function(col) is.numeric(col),
+               function(col) mean(col, na.rm = TRUE)) %>% 
+  rename_if(function(col) is.numeric(col),
+            function(colname) paste0("avg_", colname))
+```
+
+```{r}
+msleep %>% 
+  group_by(vore) %>% 
+  summarize_at(vars(contains("sleep")),
+               function(col) mean(col, na.rm = TRUE)) %>% 
+  rename_at(vars(contains("sleep")),
+            function(colname) paste0("avg_", colname))
+```
+
