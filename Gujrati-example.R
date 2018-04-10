@@ -9,9 +9,10 @@ library(foreign)
 library(tidyverse)
 library(caret)
 library(boot)
+library(lme4)
 
 set.seed(20130810)
-theme_set(theme_bw())
+theme_set(theme_minimal())
 
 #' Though heavily biased towards Linear Regression, Econometrics deals with
 #' specifying the regression problems rooted on economic theory. The regression
@@ -22,12 +23,12 @@ theme_set(theme_bw())
 
 #' *Example 1*
 
-cps <- read.dta("data/gujrati-example/Stata/Table1_1.dta")
-glimpse(cps)
+cps_df <- read.dta("data/gujrati-example/Stata/Table1_1.dta")
+glimpse(cps_df)
 
-tr_rows <- createDataPartition(cps$wage, p = 0.8, list = FALSE)
-train_cps <- cps[tr_rows, ]
-test_cps <- cps[-tr_rows, ]
+tr_rows <- createDataPartition(cps_df$wage, p = 0.8, list = FALSE)
+train_cps <- cps_df[tr_rows, ]
+test_cps <- cps_df[-tr_rows, ]
 
 lm_cps <- train(wage ~ female + nonwhite + union + education + exper,
                 data = train_cps,
@@ -172,15 +173,19 @@ summary(lm(gpi ~ gps + recession81 + gpsrec81, data = si_usa))
 #' *Example 7*
 #' Deseasonalizing trends with dummy variables
 
-sales_data <- read.dta("data/gujrati-example/Stata/Table3_10.dta")
-glimpse(sales_data)
+sales_df <- read.dta("data/gujrati-example/Stata/Table3_10.dta")
+glimpse(sales_df)
 
-summary(sales_model <- lm(sales ~ d2 + d3 + d4, data = sales_data))
+sales_df <- rename(sales_df, q2 = d2, q3 = d3, q4 = d4)
+glimpse(sales_df)
 
-(sales_data$sales_adj <- mean(sales_data$sales) + residuals(sales_model))
+summary(sales_model <- lm(sales ~ q2 + q3 + q4, data = sales_df))
+
+sales_df <- sales_df %>% 
+              mutate(sales_adj = mean(sales) + residuals(sales_model))
 
 dev.new()
-ggplot(data = sales_data, aes(x = yearq, y = sales)) +
+ggplot(data = sales_df, aes(x = yearq, y = sales)) +
   geom_line(aes(linetype = "Original data")) +
   geom_line(aes(y = sales_adj, linetype = "Deseasonalized")) +
   labs(x = "Year",
@@ -192,41 +197,53 @@ ggplot(data = sales_data, aes(x = yearq, y = sales)) +
 #' quarters. The underlying pattern beyond this seasonal variation can be
 #' explored using this kind of a regression analysis.
 
-summary(sales_model2 <- lm(sales ~ rpdi + conf + d2 + d3 + d4, 
-                           data = sales_data))
+summary(sales_model2 <- lm(sales ~ rpdi + conf + q2 + q3 + q4, 
+                           data = sales_df))
 
-sales_data$sales_adj <- mean(sales_data$sales) + residuals(sales_model2)
+sales_df <- sales_df %>% 
+              mutate(sales_adj = mean(sales) + residuals(sales_model2))
 
-ggplot(data = sales_data, aes(x = yearq)) +
+dev.new()
+ggplot(data = sales_df, aes(x = yearq)) +
   geom_line(aes(y = sales, linetype = "Original Data")) +
   geom_line(aes(y = sales_adj, linetype = "Deseasonalized")) +
   labs(x = "Year",
        y = "Sales",
        linetype = "Sales")
 
-summary(sales_model3 <- lm(sales ~ rpdi + conf + d2 + d3 + d4 + 
-                                   d2:rpdi + d3:rpdi + d4:rpdi +
-                                   d2:conf + d3:conf + d4:conf,
-                           data = sales_data))
+summary(sales_model3 <- lm(sales ~ rpdi + conf + q2 + q3 + q4 + 
+                                   q2:rpdi + q3:rpdi + q4:rpdi +
+                                   q2:conf + q3:conf + q4:conf,
+                           data = sales_df))
 
 #' From the above table, the lack of significance of the coefficients show that
 #' there is no seasonal variation in rpdi and conf
 
-summary(sales_model4 <- lm(log(sales) ~ rpdi + conf + d2 + d3 + d4, 
-                           data = sales_data))
+summary(sales_model4 <- lm(log(sales) ~ rpdi + conf + q2 + q3 + q4, 
+                           data = sales_df))
 
 #' Verifying Frisch-Waugh theorem
+#'
+#' Regress sales, rdpi and conf individually on the dummy variables for the
+#' quarters. This accounts for the variation in these variables that is
+#' correlated with the variation in the quarters
 
-summary(s1 <- lm(sales ~ d2 + d3 + d4, data = sales_data))
-summary(s2 <- lm(rpdi ~ d2 + d3 + d4, data = sales_data))
-summary(s3 <- lm(conf ~ d2 + d3 + d4, data = sales_data))
+summary(s1 <- lm(sales ~ q2 + q3 + q4, data = sales_df))
+summary(s2 <- lm(rpdi ~ q2 + q3 + q4, data = sales_df))
+summary(s3 <- lm(conf ~ q2 + q3 + q4, data = sales_df))
+
+#' The residuals will compute the left over variation in the variables once the 
+#' seasonal variation is accounted for
 
 rs1 <- residuals(s1)
 rs2 <- residuals(s2)
 rs3 <- residuals(s3)
 
+#' Now we can capture the variation in the "purer" variables by running a
+#' regression on the residuals
+
 summary(lm(rs1 ~ rs2 + rs3 - 1))
-summary(lm(sales ~ rpdi + conf + d2 + d3 + d4, data = sales_data))
+summary(lm(sales ~ rpdi + conf + q2 + q3 + q4, data = sales_df))
 
 #' As can be seen from these regression outputs, the coefficients of rs2 and rs3
 #' in the first regression and rpdi and conf in the second regression are the
@@ -234,7 +251,7 @@ summary(lm(sales ~ rpdi + conf + d2 + d3 + d4, data = sales_data))
 #' in the outcome and the predictors individually. Usage of dummies achieves two
 #' tasks at once
 
-summary(lm(sales ~ rpdi + conf + d2 + d3 + d4 + trend, data = sales_data))
+summary(lm(sales ~ rpdi + conf + q2 + q3 + q4 + trend, data = sales_df))
 
 #' *Example 8*
 #' 
@@ -289,9 +306,95 @@ findCorrelation(x_corr, cutoff = 0.75, verbose = TRUE, names = TRUE)
 
 #' *Example 11*
 #' What factors determine abortion rate across the 50 states in USA?
+#' 
+#' In this example heteroscedascity is examined. Basically, the assumption that 
+#' the error variance across the observations is the same goes kaput.
 
-abortion_data <- read.dta("data/gujrati-example/Stata/Table5_1.dta")
-glimpse(abortion_data)
+abortion_df <- read.dta("data/gujrati-example/Stata/Table5_1.dta")
+glimpse(abortion_df)
 
+#' begin by adding everything into a linear model
 
+summary(abort_model1 <- lm(abortion ~ religion + price + laws + funds + educ + income  + picket, 
+                           data = abortion_df))
 
+#' Common wisdom would dictate that parameters like income and funds (which make
+#' the mechanics of abortion easier) should increase the abortion rate. The
+#' results indicate that except income and picket nothing else is significant.
+#' What is missing in this analysis is the effect of the state to which the
+#' subject belongs to. Maybe that is a source of different groups of people?
+
+dev.new()
+qplot(residuals(abort_model1)^2, geom = "histogram") +
+  labs(x = "Squared residuals",
+       y = "Freuency",
+       title = "Distribution of residuals for the abortion model")
+
+#' This plot shows evidence of a heavy-tailed distribution. The residual vs
+#' fitted values plot also shows systematic variation
+
+dev.new()
+qplot(residuals(abort_model1)^2, predict(abort_model1))
+
+#' We can confirm our suspicions by running a regression of the squared
+#' residuals on the predictors. We want all the coefficients in this regression
+#' to be 0.
+
+abortion_df <- abortion_df %>% 
+                 mutate(resid2 = residuals(abort_model1)^2,
+                        pred = predict(abort_model1),
+                        pred2 = predict(abort_model1)^2)
+
+summary(abort_err_mdl <- lm(resid2 ~ religion + price + laws + funds + educ + 
+                                     income + picket, 
+                            data = abortion_df))
+
+#' Another approach is to regress the squared residuals on the fitted values,
+#' which in a way captures the linear model in the previous snippet.
+
+summary(abort_err_mdl2 <- lm(resid2 ~ pred + pred2, data = abortion_df))
+
+#' Given that the error terms are not i.i.d., we can look to remedy these. A
+#' popular method is logarithms
+
+summary(abort_model2 <- lm(lnabortion ~ religion + price + laws + funds + educ +
+                                        income + picket,
+                           data = abortion_df))
+
+abort_err_df <- abortion_df %>% 
+                  mutate(resid2 = residuals(abort_model2)^2,
+                         pred = predict(abort_model2),
+                         pred2 = predict(abort_model2)^2)
+
+summary(lm(resid2 ~ pred + pred2, data = abort_err_df))
+
+#' The F-statistic from the above equation indicates that error variances are
+#' equal.
+#'
+#' However, this raises a concern whether it is good to do such tremendous
+#' assumptions to validate linear models. Does this engineering result in
+#' improved predictive power?
+
+tr_rows <- createDataPartition(abortion_df$lnabortion, p = 0.8, list = FALSE)
+abortion_train <- abortion_df[tr_rows, ]
+abortion_test <- abortion_df[-tr_rows, ]
+
+model_lm <- train(abortion ~ religion + price + laws + funds + educ + income  + picket,
+                  data = abortion_train,
+                  method = "lm",
+                  trControl = trainControl(method = "repeatedcv", 
+                                           number = 10,
+                                           repeats = 5))
+
+model_rf <- train(abortion ~ religion + price + laws + funds + educ + income  + picket,
+                  data = abortion_train,
+                  method = "ranger",
+                  trControl = trainControl(method = "repeatedcv", 
+                                           number = 10,
+                                           repeats = 5))
+
+model_lm$results
+model_rf$results
+
+#' Random forests does not improve the accuracy. We can drop back down to the
+#' normal linear model. The data seem to be woefully insufficient!
