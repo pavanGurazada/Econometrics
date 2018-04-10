@@ -386,7 +386,7 @@ model_lm <- train(abortion ~ religion + price + laws + funds + educ + income  + 
                                            number = 10,
                                            repeats = 5))
 
-model_rf <- train(abortion ~ religion + price + laws + funds + educ + income  + picket,
+model_rf <- train(abortion ~ state + religion + price + laws + funds + educ + income  + picket,
                   data = abortion_train,
                   method = "ranger",
                   trControl = trainControl(method = "repeatedcv", 
@@ -396,5 +396,5 @@ model_rf <- train(abortion ~ religion + price + laws + funds + educ + income  + 
 model_lm$results
 model_rf$results
 
-#' Random forests does not improve the accuracy. We can drop back down to the
-#' normal linear model. The data seem to be woefully insufficient!
+#' Random forests does not improve the accuracy remarkably. We can drop back
+#' down to the normal linear model. The data seem to be woefully insufficient!
