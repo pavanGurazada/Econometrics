@@ -54,6 +54,8 @@ model_logit <- train(factor(charter) ~ lnrelp,
 
 model_logit$results
 
+summary(model_logit)
+
 model_probit <- train(factor(charter) ~ lnrelp,
                       data = fishing_train,
                       method = "glm",
@@ -64,3 +66,7 @@ model_probit <- train(factor(charter) ~ lnrelp,
 
 model_probit$results
 
+summary(model_probit)
+
+confusionMatrix(predict(model_logit, fishing_test), fishing_test$charter)
+confusionMatrix(predict(model_probit, fishing_test), fishing_test$charter)
