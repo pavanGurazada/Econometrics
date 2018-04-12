@@ -398,3 +398,25 @@ model_rf$results
 
 #' Random forests does not improve the accuracy remarkably. We can drop back
 #' down to the normal linear model. The data seem to be woefully insufficient!
+
+#' *Example 12*
+#' Consumption function
+#' What does the real consumption in a particular year depend on?
+
+consumption_df <- read.dta("data/gujrati-example/Stata/Table6_1.dta")
+glimpse(consumption_df)
+
+summary(model_lm1 <- lm(lnconsump ~ lndpi + lnwealth + interest, data = consumption_df))
+
+#' Time series plots needs to be checked for autocorrelation by default
+
+dev.new()
+qplot(consumption_df$year, residuals(model_lm1), geom = "line") +
+  labs(x = "Year",
+       y = "Residuals")
+
+summary(model_lm2 <- lm(dlnconsump ~ dlndpi + dlnwealth + dinterest, data = consumption_df))
+
+qplot(consumption_df$year[-1], residuals(model_lm2), geom = "line") +
+  labs(x = "Year",
+       y = "Residuals")
