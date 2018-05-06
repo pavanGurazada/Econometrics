@@ -82,7 +82,7 @@ glimpse(X_train_tbl)
 y_train_vec <- ifelse(pull(train_tbl, Churn) == "Yes", 1, 0)
 y_test_vec <- ifelse(pull(test_tbl, Churn) == "Yes", 1, 0)
 
-#' Building the artificial neural network
+#' Building the multi-layer perceptron
 
 model_keras <- keras_model_sequential()
 
@@ -97,12 +97,14 @@ model_keras %>% layer_dense(units = 16,
                 layer_dropout(rate = 0.1) %>% 
                 layer_dense(units = 1,
                             kernel_initializer = "uniform",
-                            activation = "sigmoid") %>% 
-                compile(optimizer = "adam",
-                        loss = "binary_crossentropy",
-                        metrics = c("accuracy"))
+                            activation = "sigmoid") -> model_keras
 
-fit_keras <- fit(object = model_keras,
+compile(model_keras, 
+        optimizer = "adam",
+        loss = "binary_crossentropy",
+        metrics = c("accuracy"))
+
+fit_keras <- fit(model_keras,
                  x = as.matrix(X_train_tbl),
                  y = y_train_vec, 
                  batch_size = 50,
@@ -110,6 +112,37 @@ fit_keras <- fit(object = model_keras,
                  validation_split = 0.3)
 dev.new()
 plot(fit_keras) + labs(title = "Deep Learning training results")
+
+
+model_keras %>% layer_dense(units = 24,
+                            kernel_initializer = "uniform",
+                            activation = "relu",
+                            input_shape = ncol(X_train_tbl)) %>% 
+                layer_dropout(rate = 0.1) %>% 
+                layer_dense(units = 24,
+                            kernel_initializer = "uniform",
+                            activation = "relu") %>% 
+                layer_dropout(rate = 0.1) %>% 
+                layer_dense(units = 1,
+                            kernel_initializer = "uniform",
+                            activation = "sigmoid") -> model_keras
+
+compile(model_keras, 
+        optimizer = "adam",
+        loss = "binary_crossentropy",
+        metrics = c("accuracy"))
+
+fit_keras <- fit(model_keras,
+                 x = as.matrix(X_train_tbl),
+                 y = y_train_vec, 
+                 batch_size = 50,
+                 epochs = 35,
+                 validation_split = 0.3)
+dev.new()
+plot(fit_keras) + labs(title = "Deep Learning training results")
+
+
+
 
 #' Making predictions
 
